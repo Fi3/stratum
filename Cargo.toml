@@ -1,0 +1,7 @@
+[workspace]
+
+members = [
+    "protocols/v1",
+    "protocols/v1/examples/client_and_server",
+]
+

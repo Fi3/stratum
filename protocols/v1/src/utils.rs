@@ -1,0 +1,190 @@
+use bitcoin_hashes::hex::{FromHex, ToHex};
+use byteorder::{BigEndian, ByteOrder, LittleEndian, WriteBytesExt};
+use hex::FromHexError;
+use serde_json::Value;
+use std::convert::TryFrom;
+use std::convert::TryInto;
+use std::mem::size_of;
+
+use crate::error::{Error, Result};
+
+/// Helper type that allows simple serialization and deserialization of byte vectors
+/// that are represented as hex strings in JSON
+#[derive(Clone, Debug, PartialEq)]
+pub struct HexBytes(Vec<u8>);
+
+impl HexBytes {
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
+impl TryFrom<HexBytes> for Value {
+    type Error = Error;
+
+    fn try_from(eb: HexBytes) -> Result<Self> {
+        Ok(TryInto::<String>::try_into(eb).map_err(|_| todo!())?.into())
+    }
+}
+
+/// Referencing the internal part of hex bytes
+impl AsRef<Vec<u8>> for HexBytes {
+    fn as_ref(&self) -> &Vec<u8> {
+        &self.0
+    }
+}
+
+/// fix for error on odd-length hex sequences
+/// FIXME: find a nicer solution
+fn hex_decode(s: &str) -> std::result::Result<Vec<u8>, FromHexError> {
+    if s.len() % 2 != 0 {
+        hex::decode(&format!("0{}", s))
+    } else {
+        hex::decode(s)
+    }
+}
+impl TryFrom<&str> for HexBytes {
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self> {
+        Ok(HexBytes(
+            //hex_decode(value).context("Parsing hex bytes failed")?,
+            hex_decode(value).unwrap(),
+        ))
+    }
+}
+impl From<HexBytes> for String {
+    fn from(bytes: HexBytes) -> String {
+        hex::encode(bytes.0)
+    }
+}
+
+/// TODO: this is not the cleanest way as any deserialization error is essentially consumed and
+/// manifested as empty vector. However, it is very comfortable to use this trait implementation
+/// in Extranonce1 serde support
+impl From<String> for HexBytes {
+    fn from(value: String) -> Self {
+        HexBytes::try_from(value.as_str()).unwrap_or(HexBytes(vec![]))
+    }
+}
+
+/// Big-endian alternative of the HexU32
+/// TODO: find out how to consolidate/parametrize it with generic parameters
+#[derive(Clone, Debug, PartialEq)]
+pub struct HexU32Be(pub u32);
+
+impl HexU32Be {
+    pub fn check_mask(&self, mask: &HexU32Be) -> bool {
+        ((!self.0) & mask.0) == 0
+    }
+}
+
+impl TryFrom<HexU32Be> for Value {
+    type Error = Error;
+
+    fn try_from(eu: HexU32Be) -> Result<Self> {
+        Ok(TryInto::<String>::try_into(eu).map_err(|_| todo!())?.into())
+    }
+}
+
+impl TryFrom<&str> for HexU32Be {
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self> {
+        //let parsed_bytes: [u8; 4] = FromHex::from_hex(value).context("parse u32 hex value")?;
+        let parsed_bytes: [u8; 4] = FromHex::from_hex(value).unwrap();
+        Ok(HexU32Be(u32::from_be_bytes(parsed_bytes)))
+    }
+}
+
+/// TODO: this is not the cleanest way as any deserialization error is essentially consumed and
+/// manifested as empty vector. However, it is very comfortable to use this trait implementation
+/// in Extranonce1 serde support
+impl From<String> for HexU32Be {
+    fn from(value: String) -> Self {
+        HexU32Be::try_from(value.as_str()).unwrap_or(HexU32Be(0))
+    }
+}
+
+/// Helper Serializer
+impl Into<String> for HexU32Be {
+    fn into(self) -> String {
+        self.0.to_be_bytes().to_hex()
+    }
+}
+
+/// PrevHash in Stratum V1 has brain-damaged serialization as it swaps bytes of every u32 word
+/// into big endian. Therefore, we need a special type for it
+#[derive(Clone, Debug, PartialEq)]
+pub struct PrevHash(pub Vec<u8>);
+
+impl From<PrevHash> for Vec<u8> {
+    fn from(p_hash: PrevHash) -> Self {
+        p_hash.0
+    }
+}
+
+/// TODO: implement unit test
+impl TryFrom<&str> for PrevHash {
+    type Error = Error;
+
+    fn try_from(value: &str) -> Result<Self> {
+        // Reorder prevhash will be stored via this cursor
+        let mut prev_hash_cursor = std::io::Cursor::new(Vec::new());
+
+        // Decode the plain byte array and sanity check
+        // let prev_hash_stratum_order = hex_decode(value).context("Parsing hex bytes failed")?;
+        let prev_hash_stratum_order = hex_decode(value).unwrap();
+        // TODO
+        // if prev_hash_stratum_order.len() != 32 {
+        //     return Err(ErrorKind::Json(format!(
+        //         "Incorrect prev hash length: {}",
+        //         prev_hash_stratum_order.len()
+        //     ));
+        //     //.into());
+        // }
+        // Swap every u32 from big endian to little endian byte order
+        for chunk in prev_hash_stratum_order.chunks(size_of::<u32>()) {
+            let prev_hash_word = BigEndian::read_u32(chunk);
+            prev_hash_cursor
+                .write_u32::<LittleEndian>(prev_hash_word)
+                .expect("Internal error: Could not write buffer");
+        }
+
+        Ok(PrevHash(prev_hash_cursor.into_inner()))
+    }
+}
+
+impl TryFrom<PrevHash> for Value {
+    type Error = Error;
+
+    fn try_from(ph: PrevHash) -> Result<Self> {
+        Ok(TryInto::<String>::try_into(ph).map_err(|_| todo!())?.into())
+    }
+}
+
+/// TODO: this is not the cleanest way as any deserialization error is essentially consumed and
+/// manifested as empty vector. However, it is very comfortable to use this trait implementation
+/// in Extranonce1 serde support
+impl From<String> for PrevHash {
+    fn from(value: String) -> Self {
+        PrevHash::try_from(value.as_str()).unwrap_or(PrevHash(vec![]))
+    }
+}
+
+/// Helper Serializer that peforms the reverse process of converting the prev hash into stratum V1
+/// ordering
+/// TODO: implement unit test
+impl Into<String> for PrevHash {
+    fn into(self) -> String {
+        let mut prev_hash_stratum_cursor = std::io::Cursor::new(Vec::new());
+        // swap every u32 from little endian to big endian
+        for chunk in self.0.chunks(size_of::<u32>()) {
+            let prev_hash_word = LittleEndian::read_u32(chunk);
+            prev_hash_stratum_cursor
+                .write_u32::<BigEndian>(prev_hash_word)
+                .expect("Internal error: Could not write buffer");
+        }
+        hex::encode(prev_hash_stratum_cursor.into_inner())
+    }
+}
