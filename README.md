@@ -29,10 +29,10 @@ Things to be decided are: (each point can be discussed in a specific issue)
 The explorational phase is useful also to set the project's milestones.
 
 Milestones: (an issue for the milestones can be useful)
-[ ] write project's milestones
-[ ] style and structure of the Sv2 repo decided and documented
-[ ] finish the Sv2 BIP
-[ ] PR on bitcoin core
+- [ ] write project's milestones
+- [ ] style and structure of the Sv2 repo decided and documented
+- [ ] finish the Sv2 BIP
+- [ ] PR on bitcoin core
 
 ## Logs
 TODO
