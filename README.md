@@ -64,16 +64,15 @@ TODO
 The libraries must be buildable on Guix. The libraries should be compilable for the
 arm-openwrt-linux-muslgnueabi-gcc target.
 
+## CI/CD
+TODO
+I like github actions
 
 ## First experiment Sv1 library + Sv1 client + Sv1 server
 The exploration is started porting some Sv1 primitives and implementing a toy Sv1 server and client.
 
 The library do not assume any asynchronous layer and export a Client and a Server trait the can be
 implemented using any asynchronous layer.
-
-## CI/CD
-TODO
-I like github actions
 
 `cargo run v1` will run the example.
 
