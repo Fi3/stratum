@@ -76,6 +76,12 @@ implemented using any asynchronous layer.
 
 `cargo run v1` will run the example.
 
+*TO BE DISCUSSED*
+IsServer and IsClient are concrete abstraction as probably nothing will need to be generic over them.
+IsServer and IsClient are trait and not struct so the final implementation can decide the best
+internal structure. Maybe the library should just export a Server and Client struct and then the
+implementation just add the network layers?
+
 ### Pro
 The library part results less complex and it lets more freedom in the implementation choices.
 
