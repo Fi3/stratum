@@ -10,12 +10,18 @@ use crate::utils::{HexBytes, HexU32Be};
 
 use crate::methods::{MethodError, ParsingMethodError};
 
+#[cfg(test)]
+use quickcheck::{Arbitrary, Gen};
+
+#[cfg(test)]
+use quickcheck_macros;
+
 /// _mining.authorize("username", "password")_
 ///
 /// The result from an authorize request is usually true (successful), or false.
 /// The password may be omitted if the server does not require passwords.
 ///
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Authorize {
     pub name: String,
     pub password: String,
@@ -63,6 +69,28 @@ impl TryFrom<StandardRequest> for Authorize {
     }
 }
 
+#[cfg(test)]
+impl Arbitrary for Authorize {
+    fn arbitrary(g: &mut Gen) -> Self {
+        Authorize {
+            name: String::arbitrary(g),
+            password: String::arbitrary(g),
+            id: String::arbitrary(g),
+        }
+    }
+}
+
+#[cfg(test)]
+#[quickcheck_macros::quickcheck]
+fn from_to_json_rpc(auth: Authorize) -> bool {
+    let message = Into::<Message>::into(auth.clone());
+    let request = match message {
+        Message::StandardRequest(s) => s,
+        _ => panic!(),
+    };
+    auth == TryInto::<Authorize>::try_into(request).unwrap()
+}
+
 // mining.capabilities (DRAFT) TODO (incompatible with mining.configure)
 
 /// _mining.extranonce.subscribe()_
@@ -86,7 +114,7 @@ pub struct ExtranonceSubscribe();
 ///
 /// Server response is result: true for accepted, false for rejected (or you may get an error with
 /// more details).
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Submit {
     pub user_name: String,
     pub job_id: String,
@@ -181,6 +209,37 @@ impl TryFrom<StandardRequest> for Submit {
         }
     }
 }
+
+#[cfg(test)]
+impl Arbitrary for Submit {
+    fn arbitrary(g: &mut Gen) -> Self {
+        let extra = Vec::<u8>::arbitrary(g);
+        let bits = Option::<u32>::arbitrary(g);
+        let extra = HexBytes(extra);
+        let bits = bits.map(|x| HexU32Be(x));
+        Submit {
+            user_name: String::arbitrary(g),
+            job_id: String::arbitrary(g),
+            extra_nonce2: extra,
+            time: i64::arbitrary(g),
+            nonce: i64::arbitrary(g),
+            version_bits: bits,
+            id: String::arbitrary(g),
+        }
+    }
+}
+ 
+#[cfg(test)]
+#[quickcheck_macros::quickcheck]
+fn submit_from_to_json_rpc(submit: Submit) -> bool {
+    let message = Into::<Message>::into(submit.clone());
+    let request = match message {
+        Message::StandardRequest(s) => s,
+        _ => panic!(),
+    };
+    submit == TryInto::<Submit>::try_into(request).unwrap()
+}
+
 
 /// _mining.subscribe("user agent/version", "extranonce1")_
 ///

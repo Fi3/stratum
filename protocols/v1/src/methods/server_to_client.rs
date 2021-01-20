@@ -305,12 +305,12 @@ impl Submit {
 ///
 /// The result contains three items:
 ///
-///     Subscriptions. - An array of 2-item tuples, each with a subscription type and id.
+///    Subscriptions. - An array of 2-item tuples, each with a subscription type and id.
 ///
-///     ExtraNonce1. - Hex-encoded, per-connection unique string which will be used for creating
-///     generation transactions later.
+///    ExtraNonce1. - Hex-encoded, per-connection unique string which will be used for creating
+///    generation transactions later.
 ///
-///     ExtraNonce2_size. - The number of bytes that the miner users for its ExtraNonce2 counter.
+///    ExtraNonce2_size. - The number of bytes that the miner users for its ExtraNonce2 counter.
 ///
 #[derive(Debug)]
 pub struct Subscribe {

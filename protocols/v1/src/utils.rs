@@ -8,7 +8,7 @@ use std::mem::size_of;
 /// Helper type that allows simple serialization and deserialization of byte vectors
 /// that are represented as hex strings in JSON
 #[derive(Clone, Debug, PartialEq)]
-pub struct HexBytes(Vec<u8>);
+pub struct HexBytes(pub(crate) Vec<u8>);
 
 impl HexBytes {
     pub fn len(&self) -> usize {
@@ -38,6 +38,7 @@ fn hex_decode(s: &str) -> std::result::Result<Vec<u8>, FromHexError> {
         hex::decode(s)
     }
 }
+
 impl TryFrom<&str> for HexBytes {
     type Error = FromHexError;
 
@@ -45,21 +46,13 @@ impl TryFrom<&str> for HexBytes {
         Ok(HexBytes(hex_decode(value)?))
     }
 }
+
 impl From<HexBytes> for String {
     fn from(bytes: HexBytes) -> String {
         hex::encode(bytes.0)
     }
 }
 
-/// TODO rimuovere questo e tutti quelli come lui
-/// TODO: this is not the cleanest way as any deserialization error is essentially consumed and
-/// manifested as empty vector. However, it is very comfortable to use this trait implementation
-/// in Extranonce1 serde support
-impl From<String> for HexBytes {
-    fn from(value: String) -> Self {
-        HexBytes::try_from(value.as_str()).unwrap_or(HexBytes(vec![]))
-    }
-}
 
 /// Big-endian alternative of the HexU32
 /// TODO: find out how to consolidate/parametrize it with generic parameters
@@ -84,15 +77,6 @@ impl TryFrom<&str> for HexU32Be {
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let parsed_bytes: [u8; 4] = FromHex::from_hex(value)?;
         Ok(HexU32Be(u32::from_be_bytes(parsed_bytes)))
-    }
-}
-
-/// TODO: this is not the cleanest way as any deserialization error is essentially consumed and
-/// manifested as empty vector. However, it is very comfortable to use this trait implementation
-/// in Extranonce1 serde support
-impl From<String> for HexU32Be {
-    fn from(value: String) -> Self {
-        HexU32Be::try_from(value.as_str()).unwrap_or(HexU32Be(0))
     }
 }
 
@@ -151,14 +135,6 @@ impl From<PrevHash> for Value {
     }
 }
 
-/// TODO: this is not the cleanest way as any deserialization error is essentially consumed and
-/// manifested as empty vector. However, it is very comfortable to use this trait implementation
-/// in Extranonce1 serde support
-impl From<String> for PrevHash {
-    fn from(value: String) -> Self {
-        PrevHash::try_from(value.as_str()).unwrap_or(PrevHash(vec![]))
-    }
-}
 
 /// Helper Serializer that peforms the reverse process of converting the prev hash into stratum V1
 /// ordering
