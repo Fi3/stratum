@@ -52,3 +52,21 @@ pub struct JsonRpcError {
     pub message: String,
     pub data: Option<serde_json::Value>,
 }
+
+impl From<Response> for Message {
+    fn from(res: Response) -> Self {
+        Message::Response(res)
+    }
+}
+
+impl From<StandardRequest> for Message {
+    fn from(sr: StandardRequest) -> Self {
+        Message::StandardRequest(sr)
+    }
+}
+
+impl From<Notification> for Message {
+    fn from(n: Notification) -> Self {
+        Message::Notification(n)
+    }
+}

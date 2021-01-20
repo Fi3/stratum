@@ -3,10 +3,7 @@ use byteorder::{BigEndian, ByteOrder, LittleEndian, WriteBytesExt};
 use hex::FromHexError;
 use serde_json::Value;
 use std::convert::TryFrom;
-use std::convert::TryInto;
 use std::mem::size_of;
-
-use crate::error::{Error, Result};
 
 /// Helper type that allows simple serialization and deserialization of byte vectors
 /// that are represented as hex strings in JSON
@@ -19,11 +16,9 @@ impl HexBytes {
     }
 }
 
-impl TryFrom<HexBytes> for Value {
-    type Error = Error;
-
-    fn try_from(eb: HexBytes) -> Result<Self> {
-        Ok(TryInto::<String>::try_into(eb).map_err(|_| todo!())?.into())
+impl From<HexBytes> for Value {
+    fn from(eb: HexBytes) -> Self {
+        Into::<String>::into(eb).into()
     }
 }
 
@@ -44,13 +39,10 @@ fn hex_decode(s: &str) -> std::result::Result<Vec<u8>, FromHexError> {
     }
 }
 impl TryFrom<&str> for HexBytes {
-    type Error = Error;
+    type Error = FromHexError;
 
-    fn try_from(value: &str) -> Result<Self> {
-        Ok(HexBytes(
-            //hex_decode(value).context("Parsing hex bytes failed")?,
-            hex_decode(value).unwrap(),
-        ))
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Ok(HexBytes(hex_decode(value)?))
     }
 }
 impl From<HexBytes> for String {
@@ -59,6 +51,7 @@ impl From<HexBytes> for String {
     }
 }
 
+/// TODO rimuovere questo e tutti quelli come lui
 /// TODO: this is not the cleanest way as any deserialization error is essentially consumed and
 /// manifested as empty vector. However, it is very comfortable to use this trait implementation
 /// in Extranonce1 serde support
@@ -79,20 +72,17 @@ impl HexU32Be {
     }
 }
 
-impl TryFrom<HexU32Be> for Value {
-    type Error = Error;
-
-    fn try_from(eu: HexU32Be) -> Result<Self> {
-        Ok(TryInto::<String>::try_into(eu).map_err(|_| todo!())?.into())
+impl From<HexU32Be> for Value {
+    fn from(eu: HexU32Be) -> Self {
+        Into::<String>::into(eu).into()
     }
 }
 
 impl TryFrom<&str> for HexU32Be {
-    type Error = Error;
+    type Error = bitcoin_hashes::Error;
 
-    fn try_from(value: &str) -> Result<Self> {
-        //let parsed_bytes: [u8; 4] = FromHex::from_hex(value).context("parse u32 hex value")?;
-        let parsed_bytes: [u8; 4] = FromHex::from_hex(value).unwrap();
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        let parsed_bytes: [u8; 4] = FromHex::from_hex(value)?;
         Ok(HexU32Be(u32::from_be_bytes(parsed_bytes)))
     }
 }
@@ -126,15 +116,15 @@ impl From<PrevHash> for Vec<u8> {
 
 /// TODO: implement unit test
 impl TryFrom<&str> for PrevHash {
-    type Error = Error;
+    type Error = FromHexError;
 
-    fn try_from(value: &str) -> Result<Self> {
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
         // Reorder prevhash will be stored via this cursor
         let mut prev_hash_cursor = std::io::Cursor::new(Vec::new());
 
         // Decode the plain byte array and sanity check
         // let prev_hash_stratum_order = hex_decode(value).context("Parsing hex bytes failed")?;
-        let prev_hash_stratum_order = hex_decode(value).unwrap();
+        let prev_hash_stratum_order = hex_decode(value)?;
         // TODO
         // if prev_hash_stratum_order.len() != 32 {
         //     return Err(ErrorKind::Json(format!(
@@ -155,11 +145,9 @@ impl TryFrom<&str> for PrevHash {
     }
 }
 
-impl TryFrom<PrevHash> for Value {
-    type Error = Error;
-
-    fn try_from(ph: PrevHash) -> Result<Self> {
-        Ok(TryInto::<String>::try_into(ph).map_err(|_| todo!())?.into())
+impl From<PrevHash> for Value {
+    fn from(ph: PrevHash) -> Self {
+        Into::<String>::into(ph).into()
     }
 }
 

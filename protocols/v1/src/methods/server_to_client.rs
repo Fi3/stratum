@@ -7,6 +7,7 @@ use std::convert::TryFrom;
 use std::convert::TryInto;
 
 use crate::json_rpc::{Message, Notification, Response};
+use crate::methods::{MethodError, ParsingMethodError};
 use crate::utils::{HexBytes, HexU32Be, PrevHash};
 
 // client.get_version() TODO
@@ -34,7 +35,7 @@ use crate::utils::{HexBytes, HexU32Be, PrevHash};
 ///   If false, they can still use the current job, but should move to the new one after exhausting
 ///   the current nonce range.
 ///
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Notify {
     pub job_id: String,
     pub prev_hash: PrevHash,
@@ -82,10 +83,13 @@ impl TryFrom<Notify> for Message {
 }
 
 impl TryFrom<Notification> for Notify {
-    type Error = ();
+    type Error = MethodError;
 
-    fn try_from(msg: Notification) -> Result<Self, ()> {
-        let params = msg.parameters.as_array().ok_or(())?;
+    fn try_from(msg: Notification) -> Result<Self, Self::Error> {
+        let params = msg
+            .parameters
+            .as_array()
+            .ok_or_else(|| ParsingMethodError::not_array_from_value(msg.parameters.clone()))?;
         let (
             job_id,
             prev_hash,
@@ -100,21 +104,24 @@ impl TryFrom<Notification> for Notify {
             [JString(a), JString(b), JString(c), JString(d), JArrary(e), JString(f), JString(g), JString(h), JBool(i)] => {
                 (
                     a.into(),
-                    b.as_str().try_into().map_err(|_| ())?,
-                    c.as_str().try_into().map_err(|_| ())?,
-                    d.as_str().try_into().map_err(|_| ())?,
+                    b.as_str().try_into()?,
+                    c.as_str().try_into()?,
+                    d.as_str().try_into()?,
                     e,
-                    f.as_str().try_into().map_err(|_| ())?,
-                    g.as_str().try_into().map_err(|_| ())?,
-                    h.as_str().try_into().map_err(|_| ())?,
+                    f.as_str().try_into()?,
+                    g.as_str().try_into()?,
+                    h.as_str().try_into()?,
                     *i,
                 )
             }
-            _ => return Err(()),
+            _ => return Err(ParsingMethodError::wrong_args_from_value(msg.parameters).into()),
         };
         let mut merkle_branch = vec![];
         for h in merkle_branch_ {
-            let h: HexBytes = h.as_str().ok_or(())?.try_into().map_err(|_| ())?;
+            let h: HexBytes = h
+                .as_str()
+                .ok_or_else(|| ParsingMethodError::not_string_from_value(h.clone()))?
+                .try_into()?;
             merkle_branch.push(h);
         }
         Ok(Notify {
@@ -138,6 +145,7 @@ impl TryFrom<Notification> for Notify {
 /// may force a new job out when set_difficulty is sent, using clean_jobs to force the miner to
 /// begin using the new difficulty immediately.
 ///
+#[derive(Debug)]
 pub struct SetDifficulty {
     value: f64,
 }
@@ -153,13 +161,18 @@ impl From<SetDifficulty> for Message {
 }
 
 impl TryFrom<Notification> for SetDifficulty {
-    type Error = ();
+    type Error = MethodError;
 
-    fn try_from(msg: Notification) -> Result<Self, ()> {
-        let params = msg.parameters.as_array().ok_or(())?;
+    fn try_from(msg: Notification) -> Result<Self, Self::Error> {
+        let params = msg
+            .parameters
+            .as_array()
+            .ok_or_else(|| ParsingMethodError::not_array_from_value(msg.parameters.clone()))?;
         let (value,) = match &params[..] {
-            [a] => (a.as_f64().ok_or(())?,),
-            _ => return Err(()),
+            [a] => (a
+                .as_f64()
+                .ok_or_else(|| ParsingMethodError::not_float_from_value(a.clone()))?,),
+            _ => return Err(ParsingMethodError::wrong_args_from_value(msg.parameters).into()),
         };
         Ok(SetDifficulty { value })
     }
@@ -175,6 +188,7 @@ impl TryFrom<Notification> for SetDifficulty {
 /// TODO check if it is a Notification or a StandardRequest this implementation assume that it is a
 /// Notification
 ///
+#[derive(Debug)]
 pub struct SetExtranonce {
     pub extra_nonce1: HexBytes,
     pub extra_nonce2_size: usize,
@@ -194,16 +208,21 @@ impl TryFrom<SetExtranonce> for Message {
 }
 
 impl TryFrom<Notification> for SetExtranonce {
-    type Error = ();
+    type Error = MethodError;
 
-    fn try_from(msg: Notification) -> Result<Self, ()> {
-        let params = msg.parameters.as_array().ok_or(())?;
+    fn try_from(msg: Notification) -> Result<Self, Self::Error> {
+        let params = msg
+            .parameters
+            .as_array()
+            .ok_or_else(|| ParsingMethodError::not_array_from_value(msg.parameters.clone()))?;
         let (extra_nonce1, extra_nonce2_size) = match &params[..] {
             [JString(a), JNumber(b)] => (
-                a.as_str().try_into().map_err(|_| ())?,
-                b.as_u64().ok_or(())? as usize,
+                a.as_str().try_into()?,
+                b.as_u64()
+                    .ok_or_else(|| ParsingMethodError::not_unsigned_from_value(b.clone()))?
+                    as usize,
             ),
-            _ => return Err(()),
+            _ => return Err(ParsingMethodError::wrong_args_from_value(msg.parameters).into()),
         };
         Ok(SetExtranonce {
             extra_nonce1,
@@ -212,6 +231,7 @@ impl TryFrom<Notification> for SetExtranonce {
     }
 }
 
+#[derive(Debug)]
 /// Server may arbitrarily adjust version mask
 pub struct SetVersionMask {
     version_mask: HexU32Be,
@@ -230,18 +250,22 @@ impl TryFrom<SetVersionMask> for Message {
 }
 
 impl TryFrom<Notification> for SetVersionMask {
-    type Error = ();
+    type Error = MethodError;
 
-    fn try_from(msg: Notification) -> Result<Self, ()> {
-        let params = msg.parameters.as_array().ok_or(())?;
-        let (version_mask,) = match &params[..] {
-            [JString(a)] => (a.as_str().try_into().map_err(|_| ())?,),
-            _ => return Err(()),
+    fn try_from(msg: Notification) -> Result<Self, Self::Error> {
+        let params = msg
+            .parameters
+            .as_array()
+            .ok_or_else(|| ParsingMethodError::not_array_from_value(msg.parameters.clone()))?;
+        let version_mask = match &params[..] {
+            [JString(a)] => a.as_str().try_into()?,
+            _ => return Err(ParsingMethodError::wrong_args_from_value(msg.parameters).into()),
         };
         Ok(SetVersionMask { version_mask })
     }
 }
 
+#[derive(Debug)]
 pub struct Authorize(pub crate::json_rpc::Response, pub String);
 
 impl Authorize {
@@ -257,6 +281,7 @@ impl Authorize {
     }
 }
 
+#[derive(Debug)]
 pub struct Submit(pub crate::json_rpc::Response);
 
 impl Submit {
@@ -287,6 +312,7 @@ impl Submit {
 ///
 ///     ExtraNonce2_size. - The number of bytes that the miner users for its ExtraNonce2 counter.
 ///
+#[derive(Debug)]
 pub struct Subscribe {
     pub subscriptions: Vec<(String, String)>,
     pub extra_nonce1: HexBytes,
@@ -297,7 +323,7 @@ pub struct Subscribe {
 impl TryFrom<Subscribe> for Message {
     type Error = ();
 
-    fn try_from(su: Subscribe) -> Result<Self, ()> {
+    fn try_from(su: Subscribe) -> Result<Self, Self::Error> {
         let extra_nonce1: Value = su.extra_nonce1.try_into().map_err(|_| ())?;
         let extra_nonce2_size: Value = su.extra_nonce2_size.into();
         let subscriptions: Vec<Value> = su
@@ -317,7 +343,7 @@ impl TryFrom<Subscribe> for Message {
 impl TryFrom<&Response> for Subscribe {
     type Error = ();
 
-    fn try_from(msg: &Response) -> Result<Self, ()> {
+    fn try_from(msg: &Response) -> Result<Self, Self::Error> {
         let id = msg.id.clone();
         let params = msg.result.as_array().ok_or(())?;
         let (extra_nonce1, extra_nonce2_size, subscriptions_) = match &params[..] {
@@ -349,6 +375,7 @@ impl TryFrom<&Response> for Subscribe {
     }
 }
 
+#[derive(Debug)]
 pub struct Configure {
     pub version_rolling: Option<VersionRollingParams>,
     pub minimum_difficulty: Option<bool>,
@@ -463,6 +490,7 @@ impl TryFrom<&Response> for Configure {
     }
 }
 
+#[derive(Debug)]
 pub struct VersionRollingParams {
     version_rolling: bool,
     version_rolling_mask: HexU32Be,

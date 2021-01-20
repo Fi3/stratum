@@ -1,23 +1,24 @@
-//use serde::{Deserialize, Serialize};
-
-#[derive(Clone, Eq, PartialEq, Debug)]
-pub enum ErrorKind {
-    //    /// Json error.
-//    /// #[fail(display = "JSON error: {}", _0)]
-//    Json(String),
-//
-//    /// #[fail(display = "Rpc error: {}", _0)]
-//    Rpc(String),
-//
-//    /// #[fail(display = "Subscription error: {}", _0)]
-//    Subscribe(String),
-//
-//    /// #[fail(display = "Submit error: {}", _0)]
-//    Submit(String),
-}
+use crate::methods::MethodError;
 
 #[derive(Debug)]
-pub struct Error {
-    inner: ErrorKind,
+#[non_exhaustive]
+pub enum Error {
+    Method(MethodError),
+    InvalidJsonRpcMessageKind,
+    InvalidSubmission,
+    UnknownID,
 }
-pub type Result<T> = std::result::Result<T, Error>;
+
+impl From<MethodError> for Error {
+    fn from(inner: MethodError) -> Self {
+        Error::Method(inner)
+    }
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, _f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match *self {
+            _ => todo!(),
+        }
+    }
+}

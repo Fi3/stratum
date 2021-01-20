@@ -35,8 +35,9 @@
 //! [https://braiins.com/stratum-v1/docs]
 //! [https://en.bitcoin.it/wiki/Stratum_mining_protocol]
 //! [https://en.bitcoin.it/wiki/BIP_0310]
+//! [https://docs.google.com/spreadsheets/d/1z8a3S9gFkS8NGhBCxOMUDqs7h9SQltz8-VX3KPHk7Jw/edit#gid=0]
 
-mod error;
+pub mod error;
 pub mod json_rpc;
 mod methods;
 pub mod utils;
@@ -44,9 +45,11 @@ pub mod utils;
 use std::convert::TryInto;
 
 // use error::Result;
+use error::Error;
 pub use json_rpc::Message;
 pub use methods::client_to_server;
 pub use methods::server_to_client;
+pub use methods::MethodError;
 use utils::{HexBytes, HexU32Be};
 
 // pub trait Handler {
@@ -68,12 +71,16 @@ pub trait IsServer {
     /// [a]: TODO // crate::...
     /// [b]: TODO
     ///
-    fn handle_message(&mut self, msg: json_rpc::Message) -> Result<Option<json_rpc::Response>, ()>
+    fn handle_message(
+        &mut self,
+        msg: json_rpc::Message,
+    ) -> Result<Option<json_rpc::Response>, Error>
     where
         Self: std::marker::Sized,
     {
+        // Server shoudln't receive json_rpc responses
         if msg.is_response() {
-            Err(())
+            Err(Error::InvalidJsonRpcMessageKind)
         } else {
             self.handle_request(msg.try_into()?)
         }
@@ -84,7 +91,7 @@ pub trait IsServer {
     fn handle_request(
         &mut self,
         request: methods::Client2Server,
-    ) -> Result<Option<json_rpc::Response>, ()>
+    ) -> Result<Option<json_rpc::Response>, Error>
     where
         Self: std::marker::Sized,
     {
@@ -119,12 +126,11 @@ pub trait IsServer {
                     && self.extranonce2_size() == submit.extra_nonce2.len()
                     && has_valid_version_bits;
 
-
                 if is_valid_submission {
                     let accepted = self.handle_submit(&submit);
                     Ok(Some(submit.respond(accepted)))
                 } else {
-                    Err(())
+                    Err(Error::InvalidSubmission)
                 }
             }
             methods::Client2Server::Subscribe(subscribe) => {
@@ -220,7 +226,7 @@ pub trait IsServer {
     }
     // {"params":["00003000"], "id":null, "method": "mining.set_version_mask"}
     // TODO fn update_version_rolling_mask
-    
+
     fn notify(&mut self) -> Result<json_rpc::Message, ()> {
         // TODO
         Ok(server_to_client::Notify {
@@ -233,7 +239,8 @@ pub trait IsServer {
             bits: utils::HexU32Be(5678),
             time: utils::HexU32Be(5609),
             clean_jobs: true,
-        }.try_into()?)
+        }
+        .try_into()?)
     }
 }
 
@@ -244,28 +251,30 @@ pub trait IsClient {
     /// [a]: TODO // crate::...
     /// [b]: TODO
     ///
-    fn handle_message(&mut self, msg: json_rpc::Message) -> Result<Option<json_rpc::Response>, ()>
+    fn handle_message(
+        &mut self,
+        msg: json_rpc::Message,
+    ) -> Result<Option<json_rpc::Response>, Error>
     where
         Self: std::marker::Sized,
     {
         if msg.is_response() {
+            // A respnse can be an error if ...
             if msg.error().is_some() {
                 todo!();
             }
 
+            // A response can be either a Server2ClientResponse in the cases ... or a general
+            // response in the cases ...
             match TryInto::<methods::Server2ClientResponse>::try_into(msg.clone()) {
-                Ok(a) => {
-                    self.handle_response(a).map(|_| None)
-                }
-                Err(_) => {
-                    match msg {
-                        json_rpc::Message::Response(msg) => {
-                            let response = self.response_from_id(msg)?;
-                            self.handle_response(response).map(|_| None)
-                        }
-                        _ => Err(())
+                Ok(a) => self.handle_response(a).map(|_| None),
+                Err(_) => match msg {
+                    json_rpc::Message::Response(msg) => {
+                        let response = self.response_from_id(msg)?;
+                        self.handle_response(response).map(|_| None)
                     }
-                }
+                    _ => panic!(), // TODO this case should be impossible
+                },
             }
         } else {
             self.handle_request(msg.try_into()?)
@@ -277,7 +286,7 @@ pub trait IsClient {
     fn handle_request(
         &mut self,
         request: methods::Server2Client,
-    ) -> Result<Option<json_rpc::Response>, ()>
+    ) -> Result<Option<json_rpc::Response>, Error>
     where
         Self: std::marker::Sized,
     {
@@ -295,7 +304,10 @@ pub trait IsClient {
     /// Check if the given response has an id that correspond to an already sent request, if so it
     /// return the rispective response if not fail
     ///
-    fn response_from_id(&mut self, response: json_rpc::Response) -> Result<methods::Server2ClientResponse, ()> {
+    fn response_from_id(
+        &mut self,
+        response: json_rpc::Response,
+    ) -> Result<methods::Server2ClientResponse, Error> {
         if self.id_is_authorize(&response.id).is_some() {
             let name = self.id_is_authorize(&response.id).unwrap();
             let resp = server_to_client::Authorize(response, name);
@@ -304,11 +316,11 @@ pub trait IsClient {
             let resp = server_to_client::Submit(response);
             Ok(methods::Server2ClientResponse::Submit(resp))
         } else {
-            Err(())
+            Err(Error::UnknownID)
         }
     }
 
-    fn handle_response(&mut self, response: methods::Server2ClientResponse) -> Result<(), ()>
+    fn handle_response(&mut self, response: methods::Server2ClientResponse) -> Result<(), Error>
     where
         Self: std::marker::Sized,
     {
@@ -344,11 +356,14 @@ pub trait IsClient {
     /// Check if the client sent a Submit request with the given id
     fn id_is_submit(&mut self, id: &str) -> bool;
 
-    fn handle_notify(&mut self, notify: server_to_client::Notify) -> Result<(), ()>;
+    //// TODO qui error si deve poter espandere ... /////
+    fn handle_notify(&mut self, notify: server_to_client::Notify) -> Result<(), Error>;
 
-    fn handle_configure(&self, conf: &mut server_to_client::Configure) -> Result<(), ()>;
+    //// TODO qui error si deve poter espandere ... /////
+    fn handle_configure(&self, conf: &mut server_to_client::Configure) -> Result<(), Error>;
 
-    fn handle_subscribe(&mut self, subscribe: &server_to_client::Subscribe) -> Result<(), ()>;
+    //// TODO qui error si deve poter espandere ... /////
+    fn handle_subscribe(&mut self, subscribe: &server_to_client::Subscribe) -> Result<(), Error>;
 
     fn set_extranonce1(&mut self, extranonce1: HexBytes);
 
@@ -381,34 +396,58 @@ pub trait IsClient {
     fn authorize_user_name(&mut self, name: String);
 
     fn configure(&mut self, id: String) -> json_rpc::Message {
-        client_to_server::Configure::new(id, self.version_rolling_mask(), self.version_rolling_min_bit()).into()
+        client_to_server::Configure::new(
+            id,
+            self.version_rolling_mask(),
+            self.version_rolling_min_bit(),
+        )
+        .into()
     }
 
-    fn subscribe(&mut self, id: String, extranonce1: Option<HexBytes>) -> Result<json_rpc::Message, ()> {
+    fn subscribe(
+        &mut self,
+        id: String,
+        extranonce1: Option<HexBytes>,
+    ) -> Result<json_rpc::Message, ()> {
         match self.status() {
             ClientStatus::Init => Err(()),
-            _ => Ok(client_to_server::Subscribe {id, agent_signature: self.signature(), extranonce1}.try_into()?),
-        }
-    }
-
-    fn authorize(&mut self, id: String, name: String, password: String) -> Result<json_rpc::Message, ()> {
-        match self.status() {
-            ClientStatus::Init => Err(()),
-            _ => Ok(client_to_server::Authorize {id, name, password}.into()),
-        }
-    }
-
-    fn submit(&mut self, id: String, user_name: String, extra_nonce2: HexBytes, time: i64, nonce: i64, version_bits: Option<HexU32Be>) -> Result<json_rpc::Message, ()> {
-        match self.status() {
-            ClientStatus::Init => {
-                Err(())
+            _ => Ok(client_to_server::Subscribe {
+                id,
+                agent_signature: self.signature(),
+                extranonce1,
             }
+            .try_into()?),
+        }
+    }
+
+    fn authorize(
+        &mut self,
+        id: String,
+        name: String,
+        password: String,
+    ) -> Result<json_rpc::Message, ()> {
+        match self.status() {
+            ClientStatus::Init => Err(()),
+            _ => Ok(client_to_server::Authorize { id, name, password }.into()),
+        }
+    }
+
+    fn submit(
+        &mut self,
+        id: String,
+        user_name: String,
+        extra_nonce2: HexBytes,
+        time: i64,
+        nonce: i64,
+        version_bits: Option<HexU32Be>,
+    ) -> Result<json_rpc::Message, ()> {
+        match self.status() {
+            ClientStatus::Init => Err(()),
             _ => {
                 // TODO check if version_bits is set
                 if self.last_notify().is_none() {
                     Err(())
-                }
-                else if self.is_authorized(&user_name) {
+                } else if self.is_authorized(&user_name) {
                     Ok(client_to_server::Submit {
                         job_id: self.last_notify().unwrap().job_id,
                         user_name,
@@ -417,7 +456,8 @@ pub trait IsClient {
                         nonce,
                         version_bits,
                         id,
-                    }.into())
+                    }
+                    .into())
                 } else {
                     Err(())
                 }

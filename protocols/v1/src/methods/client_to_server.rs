@@ -8,11 +8,14 @@ use std::convert::TryInto;
 use crate::json_rpc::{Message, Response, StandardRequest};
 use crate::utils::{HexBytes, HexU32Be};
 
+use crate::methods::{MethodError, ParsingMethodError};
+
 /// _mining.authorize("username", "password")_
 ///
 /// The result from an authorize request is usually true (successful), or false.
 /// The password may be omitted if the server does not require passwords.
 ///
+#[derive(Debug)]
 pub struct Authorize {
     pub name: String,
     pub password: String,
@@ -41,16 +44,22 @@ impl From<Authorize> for Message {
 }
 
 impl TryFrom<StandardRequest> for Authorize {
-    type Error = ();
+    type Error = MethodError;
 
-    fn try_from(msg: StandardRequest) -> Result<Self, ()> {
-        let id = msg.id;
-        let params = msg.parameters.as_array().ok_or(())?;
-        let (name, password) = match &params[..] {
-            [JString(a), JString(b)] => (a.into(), b.into()),
-            _ => return Err(()),
-        };
-        Ok(Self { name, password, id })
+    fn try_from(msg: StandardRequest) -> Result<Self, Self::Error> {
+        match msg.parameters.as_array() {
+            Some(params) => {
+                let (name, password) = match &params[..] {
+                    [JString(a), JString(b)] => (a.into(), b.into()),
+                    _ => {
+                        return Err(ParsingMethodError::wrong_args_from_value(msg.parameters).into())
+                    }
+                };
+                let id = msg.id;
+                Ok(Self { name, password, id })
+            }
+            None => Err(ParsingMethodError::not_array_from_value(msg.parameters).into()),
+        }
     }
 }
 
@@ -59,6 +68,7 @@ impl TryFrom<StandardRequest> for Authorize {
 /// _mining.extranonce.subscribe()_
 /// Indicates to the server that the client supports the mining.set_extranonce method.
 /// TODO https://en.bitcoin.it/wiki/BIP_0310
+#[derive(Debug)]
 pub struct ExtranonceSubscribe();
 
 // mining.get_transactions TODO
@@ -76,6 +86,7 @@ pub struct ExtranonceSubscribe();
 ///
 /// Server response is result: true for accepted, false for rejected (or you may get an error with
 /// more details).
+#[derive(Debug)]
 pub struct Submit {
     pub user_name: String,
     pub job_id: String,
@@ -123,40 +134,51 @@ impl From<Submit> for Message {
 }
 
 impl TryFrom<StandardRequest> for Submit {
-    type Error = ();
+    type Error = MethodError;
 
-    fn try_from(msg: StandardRequest) -> Result<Self, ()> {
-        let id = msg.id;
-        let params = msg.parameters.as_array().ok_or(())?;
-        let (user_name, job_id, extra_nonce2, time, nonce, version_bits) = match &params[..] {
-            [JString(a), JString(b), JString(c), JNumber(d), JNumber(e), JString(f)] => (
-                a.into(),
-                b.into(),
-                (c.as_str()).try_into().map_err(|_| ())?,
-                d.as_i64().ok_or(())?,
-                e.as_i64().ok_or(())?,
-                Some((f.as_str()).try_into().map_err(|_| ())?),
-            ),
-            [JString(a), JString(b), JString(c), JNumber(d), JNumber(e)] => (
-                a.into(),
-                b.into(),
-                (c.as_str()).try_into().map_err(|_| ())?,
-                d.as_i64().ok_or(())?,
-                e.as_i64().ok_or(())?,
-                None,
-            ),
-            _ => return Err(()),
-        };
-        let res = crate::client_to_server::Submit {
-            user_name,
-            job_id,
-            extra_nonce2,
-            time,
-            nonce,
-            version_bits,
-            id,
-        };
-        Ok(res)
+    fn try_from(msg: StandardRequest) -> Result<Self, Self::Error> {
+        match msg.parameters.as_array() {
+            Some(params) => {
+                let (user_name, job_id, extra_nonce2, time, nonce, version_bits) = match &params[..]
+                {
+                    [JString(a), JString(b), JString(c), JNumber(d), JNumber(e), JString(f)] => (
+                        a.into(),
+                        b.into(),
+                        (c.as_str()).try_into()?,
+                        d.as_i64()
+                            .ok_or_else(|| ParsingMethodError::not_int_from_value(d.clone()))?,
+                        e.as_i64()
+                            .ok_or_else(|| ParsingMethodError::not_int_from_value(e.clone()))?,
+                        Some((f.as_str()).try_into()?),
+                    ),
+                    [JString(a), JString(b), JString(c), JNumber(d), JNumber(e)] => (
+                        a.into(),
+                        b.into(),
+                        (c.as_str()).try_into()?,
+                        d.as_i64()
+                            .ok_or_else(|| ParsingMethodError::not_int_from_value(d.clone()))?,
+                        e.as_i64()
+                            .ok_or_else(|| ParsingMethodError::not_int_from_value(e.clone()))?,
+                        None,
+                    ),
+                    _ => {
+                        return Err(ParsingMethodError::wrong_args_from_value(msg.parameters).into())
+                    }
+                };
+                let id = msg.id;
+                let res = crate::client_to_server::Submit {
+                    user_name,
+                    job_id,
+                    extra_nonce2,
+                    time,
+                    nonce,
+                    version_bits,
+                    id,
+                };
+                Ok(res)
+            }
+            None => Err(ParsingMethodError::not_array_from_value(msg.parameters).into()),
+        }
     }
 }
 
@@ -170,6 +192,7 @@ impl TryFrom<StandardRequest> for Submit {
 /// [a]: crate::methods::server_to_client::Notify
 ///
 ///
+#[derive(Debug)]
 pub struct Subscribe {
     pub id: String,
     pub agent_signature: String,
@@ -216,26 +239,33 @@ impl TryFrom<Subscribe> for Message {
 }
 
 impl TryFrom<StandardRequest> for Subscribe {
-    type Error = ();
+    type Error = MethodError;
 
-    fn try_from(msg: StandardRequest) -> Result<Self, ()> {
-        let id = msg.id;
-        let params = msg.parameters.as_array().ok_or(())?;
-        let (agent_signature, extranonce1) = match &params[..] {
-            [JString(a), JString(b)] => (a.into(), Some(b.as_str().try_into().map_err(|_| ())?)),
-            [JString(a)] => (a.into(), None),
-            _ => return Err(()),
-        };
-        let res = crate::client_to_server::Subscribe {
-            agent_signature,
-            extranonce1,
-            id,
-        };
-        Ok(res)
+    fn try_from(msg: StandardRequest) -> Result<Self, Self::Error> {
+        match msg.parameters.as_array() {
+            Some(params) => {
+                let (agent_signature, extranonce1) = match &params[..] {
+                    [JString(a), JString(b)] => (a.into(), Some(b.as_str().try_into()?)),
+                    [JString(a)] => (a.into(), None),
+                    _ => {
+                        return Err(ParsingMethodError::wrong_args_from_value(msg.parameters).into())
+                    }
+                };
+                let id = msg.id;
+                let res = crate::client_to_server::Subscribe {
+                    agent_signature,
+                    extranonce1,
+                    id,
+                };
+                Ok(res)
+            }
+            None => Err(ParsingMethodError::not_array_from_value(msg.parameters).into()),
+        }
     }
 }
 
 /// TODO
+#[derive(Debug)]
 pub struct Configure {
     extensions: Vec<ConfigureExtension>,
     id: String,
@@ -243,10 +273,13 @@ pub struct Configure {
 
 impl Configure {
     pub fn new(id: String, mask: Option<HexU32Be>, min_bit_count: Option<HexU32Be>) -> Self {
-        let extension = ConfigureExtension::VersionRolling(VersionRollingParams {mask, min_bit_count});
+        let extension = ConfigureExtension::VersionRolling(VersionRollingParams {
+            mask,
+            min_bit_count,
+        });
         Configure {
             extensions: vec![extension],
-            id
+            id,
         }
     }
 
@@ -318,15 +351,16 @@ impl From<Configure> for Message {
 }
 
 impl TryFrom<StandardRequest> for Configure {
-    type Error = ();
+    type Error = MethodError;
 
-    fn try_from(msg: StandardRequest) -> Result<Self, ()> {
-        let id = msg.id;
+    fn try_from(msg: StandardRequest) -> Result<Self, Self::Error> {
         let extensions = ConfigureExtension::from_value(&msg.parameters)?;
+        let id = msg.id;
         Ok(Self { extensions, id })
     }
 }
 
+#[derive(Debug)]
 pub enum ConfigureExtension {
     VersionRolling(VersionRollingParams),
     MinimumDifficulty(u64),
@@ -335,11 +369,13 @@ pub enum ConfigureExtension {
 }
 
 impl ConfigureExtension {
-    pub fn from_value(val: &Value) -> Result<Vec<ConfigureExtension>, ()> {
+    pub fn from_value(val: &Value) -> Result<Vec<ConfigureExtension>, MethodError> {
         let mut res = vec![];
-        let root = val.as_array().ok_or(())?;
+        let root = val
+            .as_array()
+            .ok_or_else(|| ParsingMethodError::not_array_from_value(val.clone()))?;
         if root.len() < 1 {
-            return Err(());
+            return Err(ParsingMethodError::Todo.into());
         };
         let version_rolling_mask = val.pointer("1/version-rolling.mask");
         let version_rolling_min_bit = val.pointer("1/version-rolling.min-bit-count");
@@ -351,7 +387,7 @@ impl ConfigureExtension {
 
         if root[0]
             .as_array()
-            .ok_or(())?
+            .ok_or_else(|| ParsingMethodError::not_array_from_value(root[0].clone()))?
             .contains(&JString("subscribe-extranonce".to_string()))
         {
             res.push(ConfigureExtension::SubcribeExtraNonce)
@@ -360,16 +396,9 @@ impl ConfigureExtension {
             let mask: Option<HexU32Be> = if version_rolling_mask.is_some()
                 && version_rolling_mask.unwrap().as_str().is_some()
             {
-                Some(
-                    version_rolling_mask
-                        .unwrap()
-                        .as_str()
-                        .unwrap()
-                        .try_into()
-                        .map_err(|_| ())?,
-                )
+                Some(version_rolling_mask.unwrap().as_str().unwrap().try_into()?)
             } else if version_rolling_mask.is_some() {
-                return Err(());
+                return Err(ParsingMethodError::Todo.into());
             } else {
                 None
             };
@@ -381,11 +410,10 @@ impl ConfigureExtension {
                         .unwrap()
                         .as_str()
                         .unwrap()
-                        .try_into()
-                        .map_err(|_| ())?,
+                        .try_into()?,
                 )
             } else if version_rolling_mask.is_some() {
-                return Err(());
+                return Err(ParsingMethodError::Todo.into());
             } else {
                 None
             };
@@ -397,9 +425,19 @@ impl ConfigureExtension {
         };
 
         if minimum_difficulty_value.is_some() {
-            res.push(ConfigureExtension::MinimumDifficulty(
-                minimum_difficulty_value.unwrap().as_u64().ok_or(())?,
-            ));
+            let min_diff = match minimum_difficulty_value.unwrap() {
+                JNumber(a) => a
+                    .as_u64()
+                    .ok_or_else(|| ParsingMethodError::not_unsigned_from_value(a.clone()))?,
+                _ => {
+                    return Err(ParsingMethodError::unexpected_value_from_value(
+                        minimum_difficulty_value.unwrap().clone(),
+                    )
+                    .into())
+                }
+            };
+
+            res.push(ConfigureExtension::MinimumDifficulty(min_diff));
         };
 
         if info_connection_url.is_some()
@@ -412,14 +450,14 @@ impl ConfigureExtension {
             {
                 Some(info_connection_url.unwrap().as_str().unwrap().to_string())
             } else if info_connection_url.is_some() {
-                return Err(());
+                return Err(ParsingMethodError::Todo.into());
             } else {
                 None
             };
             let hw_id = if info_hw_id.is_some() && info_hw_id.unwrap().as_str().is_some() {
                 Some(info_hw_id.unwrap().as_str().unwrap().to_string())
             } else if info_hw_id.is_some() {
-                return Err(());
+                return Err(ParsingMethodError::Todo.into());
             } else {
                 None
             };
@@ -427,7 +465,7 @@ impl ConfigureExtension {
                 if info_hw_version.is_some() && info_hw_version.unwrap().as_str().is_some() {
                     Some(info_hw_version.unwrap().as_str().unwrap().to_string())
                 } else if info_hw_version.is_some() {
-                    return Err(());
+                    return Err(ParsingMethodError::Todo.into());
                 } else {
                     None
                 };
@@ -435,7 +473,7 @@ impl ConfigureExtension {
                 if info_sw_version.is_some() && info_sw_version.unwrap().as_str().is_some() {
                     Some(info_sw_version.unwrap().as_str().unwrap().to_string())
                 } else if info_sw_version.is_some() {
-                    return Err(());
+                    return Err(ParsingMethodError::Todo.into());
                 } else {
                     None
                 };
@@ -477,6 +515,7 @@ impl From<ConfigureExtension> for serde_json::Map<String, Value> {
     }
 }
 
+#[derive(Debug)]
 pub struct VersionRollingParams {
     mask: Option<HexU32Be>, // TODO chech if better to use just u32
     min_bit_count: Option<HexU32Be>,
@@ -506,6 +545,7 @@ impl From<VersionRollingParams> for serde_json::Map<String, Value> {
     }
 }
 
+#[derive(Debug)]
 pub struct InfoParams {
     connection_url: Option<String>,
     hw_version: Option<String>,
