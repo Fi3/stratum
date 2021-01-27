@@ -31,8 +31,12 @@ The explorational phase is useful also to set the project's milestones.
 Milestones: (an issue for the milestones can be useful)
 - [ ] write project's milestones
 - [ ] style and structure of the Sv2 repo decided and documented
+- [ ] create github org
+- [ ] create style.md contribute.md and architecture.md
 - [ ] finish the Sv2 BIP
-- [ ] PR on bitcoin core
+- [ ] Add the necessary crates to the guix repo or create a custom channel
+- [ ] Publish version 0.0.1 of (sub)protocols as crates
+- [ ] PR on bitcoin core (~June 2021)
 
 ## Logs
 TODO
