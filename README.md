@@ -122,14 +122,19 @@ TODO (does it mean that error codes are only used for logging purposes?)
 ## Documentation
 TODO
 I like plain cargo docs
+`cargo doc --open`
 
 ## Test
 TODO
+`cargo test`
 
 ## Examples
 TODO
 I prefer using examples as examples and tests as tests. Examples are also useful to exploring
 various implementations without the burden of writing "robust code".
+
+To run `./protocols/v1/examples/client_and_server/` do `cargo run v1`
+
 
 ## C++ interoperability
 TODO
@@ -139,9 +144,49 @@ TODO
 Monorepo seems simpler
 
 ## Build system
-TODO
+TO BE DISCUSSED
+
 The libraries must be buildable on Guix. The libraries should be compilable for the
-arm-openwrt-linux-muslgnueabi-gcc target.
+`arm-openwrt-linux-muslgnueabi-gcc` target. Btw there is no need to compile for
+`arm-openwrt-linux-muslgnueabi-gcc` from Guix.
+
+Guix, guix is used to build bitcoin, so the (sub)protocols that are called by the Template Provider
+must be buildable with guix. Guix can also be useful to build the roles,  especially the one for
+other architectures (Mining Device).
+In this explorational phase is analyzed only the possibility to build and package a library crates
+as a C lib with guix. The possibility to build the roles using guix is not analyzed cause not
+strictly necessary for the success of this project but probably will be used in the future.
+
+### Install guix
+In order to install guix I used the [shell install script][guix-install]. In my system I
+need to run the script as the root user and not with sudo.
+In my system systemctl fail to launch the guix daemon, prababilly [this][guix-install2] would solve
+the issue, but I just launch the service with `guix-deamon --build-users-group=guixbuild` from root.
+Then I followed chapter [2.6.1][guix-install3], [2.6.2][guix-install4], [2.6.3][guix-install5] and
+[10.10][guix-install6].
+
+[guix-install]: https://guix.gnu.org/manual/en/guix.html#Installation
+[guix-install2]: https://guix.gnu.org/manual/en/guix.html#SELinux-Support
+[guix-install3]: https://guix.gnu.org/manual/en/guix.html#Locales-1
+[guix-install4]: https://guix.gnu.org/manual/en/guix.html#Name-Service-Switch-1
+[guix-install5]: https://guix.gnu.org/manual/en/guix.html#X11-Fonts
+[guix-install6]: https://guix.gnu.org/manual/en/guix.html#X_002e509-Certificates
+[guix-getting-started]: https://guix.gnu.org/manual/en/guix.html#Getting-Started
+
+### Test and deploy guix
+On the workspace root is present a package module for the Template Distribution Protocol, the source
+is defined by the tested git branch and so is the source SHA. In this way the CD can test
+unmerged branches. The actual package module for the master branch (the one that is committed on the
+guix repository or in a separate channel) is programmatically derived from the one used for testing.
+
+### Guix concept
+manifest: used to create an environment.
+package module: definition of a package.
+
+### Guix resources
+https://guix.gnu.org/manual/en/guix.html
+https://guix.gnu.org/cookbook/en/guix-cookbook.html
+https://www.youtube.com/watch?v=LnU8SYakZQQ
 
 ## CI/CD
 TODO
