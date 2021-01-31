@@ -28,15 +28,17 @@ Things to be decided are: (each point can be discussed in a specific issue)
 
 The explorational phase is useful also to set the project's milestones.
 
-Milestones: (an issue for the milestones can be useful)
-- [ ] write project's milestones
-- [ ] style and structure of the Sv2 repo decided and documented
-- [ ] create github org
-- [ ] create style.md contribute.md and architecture.md
-- [ ] finish the Sv2 BIP
-- [ ] Add the necessary crates to the guix repo or create a custom channel
-- [ ] Publish version 0.0.1 of (sub)protocols as crates
-- [ ] PR on bitcoin core (~June 2021)
+Milestones/Roadmap: (an issue for the milestones can be useful)
+- [ ] Write project's milestones (~15 February 2021)
+- [ ] Style and structure of the Sv2 repo decided and documented (~15 February 2021)
+- [ ] Create github organization (~15 February 2021)
+- [ ] Create github page with blog and track for Sv2 (~1 March 2021)
+- [ ] Create style.md contribute.md and architecture.md (~1 March 2021)
+- [ ] Publish version 0.0.1 of [... subprotocols] as crates
+- [ ] Add the Template Distribution Protocol to the guix repo or create a custom channel
+- [ ] Finish the Sv2 BIP (~June 2021)
+- [ ] Possible implementation of Template Provider in bitcoin (~1 June 2021)
+- [ ] PR on bitcoin core (~1 June 2021)
 
 ## Logs
 TODO
@@ -130,7 +132,7 @@ I like plain cargo docs
 
 ## Test
 TODO
-`cargo test`
+`test.sh`
 
 ## Examples
 TODO
@@ -178,10 +180,7 @@ Then I followed chapter [2.6.1][guix-install3], [2.6.2][guix-install4], [2.6.3][
 [guix-getting-started]: https://guix.gnu.org/manual/en/guix.html#Getting-Started
 
 ### Test and deploy guix
-On the workspace root is present a package module for the Template Distribution Protocol, the source
-is defined by the tested git branch and so is the source SHA. In this way the CD can test
-unmerged branches. The actual package module for the master branch (the one that is committed on the
-guix repository or in a separate channel) is programmatically derived from the one used for testing.
+An example in test.sh
 
 ### Guix concept
 manifest: used to create an environment.
@@ -190,6 +189,7 @@ package module: definition of a package.
 ### Guix resources
 https://guix.gnu.org/manual/en/guix.html
 https://guix.gnu.org/cookbook/en/guix-cookbook.html
+https://guix.gnu.org/en/blog/2018/a-packaging-tutorial-for-guix/
 https://www.youtube.com/watch?v=LnU8SYakZQQ
 
 ## CI/CD
