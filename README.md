@@ -9,11 +9,13 @@ At the end of the explorational phase (15 Feb?) a repo for the actual impl of Sv
 Every meaningful choice about style and structure will be documented thankfully to this
 explorational phase.
 
-In order to decide the best structure of the Sv2 repo some code from the (braiins)[todo] repo is
+In order to decide the best structure of the Sv2 repo some code from the [braiins][braiins] repo is
 ported here. At the end of the experimental phase, if good enough, the ported code will be
 copied in the Sv2 repo.
 
-Things to be decided are: (each point can be discussed in a specific issue)
+[braiins]: https://github.com/braiins/braiins/tree/bos-devel/open
+
+Things to be decided are:
 * log
 * error
 * documentation
@@ -26,9 +28,12 @@ Things to be decided are: (each point can be discussed in a specific issue)
 * CI/CD
 * ...
 
+This repo will be kept as a simpler version of the Sv2 repo so if some big structural change is
+needed in the Sv2 repo can be easily experimented here.
+
 The explorational phase is useful also to set the project's milestones.
 
-Milestones/Roadmap: (an issue for the milestones can be useful)
+Milestones/Roadmap:
 - [ ] Write project's milestones (~15 February 2021)
 - [ ] Style and structure of the Sv2 repo decided and documented (~15 February 2021)
 - [ ] Create github organization (~15 February 2021)
@@ -49,7 +54,7 @@ TO BE DISCUSSED
 The error that can be encountered are due to:
 
 1) physical error, IO ecc ecc
-2) downstream or upstream node is buggied and respond in a unexpected way
+2) downstream or upstream node is buggy and respond in a unexpected way
 3) downstream or upstream node is well implemented but not compatible
 
 V1 and V2 crates should be aware only about error kinds 2 and 3.
@@ -65,10 +70,10 @@ The most probable action are:
 * ignore
 * panic
 
-Ignoring messages that expect a responses can cause issues. (block the peer)
+Ignoring messages that expect responses can cause issues. (block the peer)
 
 ### Protocol errors V1
-The protocol use standard json_rpc errors for format issues.
+The protocol uses standard json_rpc errors for format issues.
 json_rpc already define what to do for invalid json invalid json_rpc ecc ecc
 
 In Sv1 methods:
@@ -79,7 +84,7 @@ Client -> Server
 * submit(username jobId ExtraNonce2 nTime nOnce): string error can be returned for several reasons
 * subscribe(agent/version Option<extranonce1>): not fail if peer is well implemented
 * suggest_difficulty(sugg_diff): not fail if peer is well implemented
-* suggest_target(..): it can fail if target too low ?
+* suggest_target(..): it can fail if target is too low ?
 
 Server -> Client
 * get_version(): not fail if peer is well implemented
@@ -89,7 +94,7 @@ Server -> Client
 * set_difficulty(difficulty): not fail if peer is well implemented
 * set_extranonce(extranonce1, extranonce2Size): not fail if peer is well implemented
 
-If an error occour in handling a _notification_ or a _response_ there is no way to notify the
+If an error occur in handling a _notification_ or a _response_ there is no way to notify the
 counterpart about the error. 
 
 ### Protocol errors V2
@@ -111,11 +116,12 @@ also specified along with their respective error messages.
 * ‘unsupported-feature-flags’
 * ‘unsupported-protocol’
 * ‘protocol-version-mismatch’
+
 TODO (does it mean that error codes are only used for logging purposes?)
 
 ### Protocol errors V2 <-> V1
 
-### Errors handled the libraries (protocols):
+### Errors handled in the libraries ((sub)protocols):
 
 * message not well formatted
 
@@ -125,18 +131,40 @@ TODO (does it mean that error codes are only used for logging purposes?)
 
 ### Final thoughts
 
+### Best Practice
+Library crates should implement basic traits as suggested [here][error1]. Also library crates
+should avoid using helper libraries as _thiserror_ cause they can have a big impact on compilation
+times (just for now, 02/2021) as stated [here][error2].
+
+[error1]: https://blog.burntsushi.net/rust-error-handling/#advice-for-library-writers
+[error2]: https://www.reddit.com/r/rust/comments/gj8inf/rust_structuring_and_handling_errors_in_2020/fqlmknt?utm_source=share&utm_medium=web2x&context=3
+
 ## Documentation
 TODO
-I like plain cargo docs
+
+I like plain cargo docs:
+
 `cargo doc --open`
+
+### Style:
+https://github.com/rust-lang/rfcs/blob/master/text/1574-more-api-documentation-conventions.md#appendix-a-full-conventions-text
+
+https://stackoverflow.com/questions/31582064/how-to-link-to-other-fns-structs-enums-traits-in-rustdoc
+
+https://deterministic.space/machine-readable-inline-markdown-code-cocumentation.html
+
 
 ## Test
 TODO
+
+Doctest are good to keep documentation updated.
+
 `test.sh`
 
 ## Examples
 TODO
-I prefer using examples as examples and tests as tests. Examples are also useful to exploring
+
+I prefer using examples as examples and tests as tests. Examples are also useful for exploring
 various implementations without the burden of writing "robust code".
 
 To run `./protocols/v1/examples/client_and_server/` do `cargo run v1`
@@ -145,21 +173,28 @@ To run `./protocols/v1/examples/client_and_server/` do `cargo run v1`
 ## C++ interoperability
 TODO
 
+`protocols/guix-example/`
+
 ## Monorepo or not
 TODO
-Monorepo seems simpler
+
+Monorepo seem simpler
+
+### Cargo workspaces useful links:
+https://www.reddit.com/r/rust/comments/a39er8/how_do_you_publish_your_cargo_workspace_packages/
 
 ## Build system
 TO BE DISCUSSED
 
-The libraries must be buildable on Guix. The libraries should be compilable for the
-`arm-openwrt-linux-muslgnueabi-gcc` target. Btw there is no need to compile for
-`arm-openwrt-linux-muslgnueabi-gcc` from Guix.
+The libraries must be buildable on Guix.
 
-Guix, guix is used to build bitcoin, so the (sub)protocols that are called by the Template Provider
-must be buildable with guix. Guix can also be useful to build the roles,  especially the one for
-other architectures (Mining Device).
-In this explorational phase is analyzed only the possibility to build and package a library crates
+The libraries should be compilable for the `arm-openwrt-linux-muslgnueabi-gcc` target. Btw there is
+no need to compile for `arm-openwrt-linux-muslgnueabi-gcc` from Guix.
+
+Guix is used to build bitcoin, so at least the _Template Distribution Protocol_ must be buildable 
+with guix. Guix can also be useful to build the roles,  especially the one for other architectures 
+(Mining Device).
+In this explorational phase is analyzed only the possibility to build and package a library crate
 as a C lib with guix. The possibility to build the roles using guix is not analyzed cause not
 strictly necessary for the success of this project but probably will be used in the future.
 
@@ -188,31 +223,36 @@ package module: definition of a package.
 
 ### Guix resources
 https://guix.gnu.org/manual/en/guix.html
+
 https://guix.gnu.org/cookbook/en/guix-cookbook.html
+
 https://guix.gnu.org/en/blog/2018/a-packaging-tutorial-for-guix/
+
 https://www.youtube.com/watch?v=LnU8SYakZQQ
 
 ## CI/CD
 TODO
+
 I like github actions
 
 ## First experiment Sv1 library + Sv1 client + Sv1 server
 The exploration is started porting some Sv1 primitives and implementing a toy Sv1 server and client.
 
-The library do not assume any asynchronous layer and export a Client and a Server trait the can be
+The library does not assume any asynchronous layer and export a Client and a Server trait that can be
 implemented using any asynchronous layer.
 
 `cargo run v1` will run the example.
 
 *TO BE DISCUSSED*
-IsServer and IsClient are concrete abstraction as probably nothing will need to be generic over them.
+
+IsServer and IsClient are concrete abstractions as probably nothing will need to be generic over them.
 IsServer and IsClient are trait and not struct so the final implementation can decide the best
 internal structure. Maybe the library should just export a Server and Client struct and then the
 implementation just add the network layers?
 
 ### Pro
 The library part results less complex and it lets more freedom in the implementation choices.
-The library follow a [sans-io](https://sans-io.readthedocs.io/) style.
+The library follows a [sans-io](https://sans-io.readthedocs.io/) style.
 
 ### Cons
-TODO
+A lot of boilerplate when the trait is implemented.
