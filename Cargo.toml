@@ -3,6 +3,6 @@
 members = [
     "protocols/v1",
     "protocols/guix-example",
-    "protocols/v1/examples/client_and_server",
+    "protocols/v1/examples/client-and-server",
 ]
 

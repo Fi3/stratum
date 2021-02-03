@@ -219,6 +219,7 @@ An example in test.sh
 
 ### Guix concept
 manifest: used to create an environment.
+
 package module: definition of a package.
 
 ### Guix resources
